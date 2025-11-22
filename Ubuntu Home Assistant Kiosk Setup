@@ -1,0 +1,239 @@
+Ubuntu Home Assistant Kiosk Setup
+
+A complete guide to creating a stable, auto-restarting, fullscreen HA dashboard on Ubuntu.
+
+Phase 1: Operating System Preparation
+Goal:
+
+Ensure the system never sleeps, hides the mouse, and allows external control.
+
+1. Switch to Xorg (Critical)
+
+Ubuntu defaults to Wayland, which blocks screen-control scripts. Switch to Xorg (X11).
+
+Log out of your current session.
+
+Click your username. Before entering your password, click the gear icon (bottom right).
+
+Select Ubuntu on Xorg.
+
+Log in.
+
+Permanent Fix:
+Edit the config file:
+
+sudo nano /etc/gdm3/custom.conf
+
+
+Find:
+
+#WaylandEnable=false
+
+
+Uncomment it so it becomes:
+
+WaylandEnable=false
+
+
+Save: Ctrl+O, Enter
+Exit: Ctrl+X
+
+2. Disable Power Saving & Install Utilities
+
+Run:
+
+# Update and install Chromium, SSH Server, Xdotool, Unclutter
+sudo apt update
+sudo apt install chromium-browser openssh-server unclutter xdotool -y
+
+# Prevent all sleep / suspend modes
+sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+
+3. Hide the Mouse Cursor
+
+Open Startup Applications.
+
+Add a new entry:
+
+Name: Hide Cursor
+
+Command: unclutter -idle 0.5 -root
+
+Phase 2: Kiosk Browser Setup
+Goal:
+
+Launch Home Assistant automatically in full-screen kiosk mode, with crash recovery.
+
+1. Create the Kiosk Service
+
+Create the service:
+
+sudo nano /etc/systemd/system/kiosk.service
+
+
+Paste (replace YOUR_USER and HA URL):
+
+[Unit]
+Description=Chromium Kiosk
+Wants=graphical.target
+After=graphical.target
+
+Environment=DISPLAY=:0.0
+Environment=XAUTHORITY=/home/YOUR_USER/.Xauthority
+Type=simple
+ExecStart=/usr/bin/chromium-browser \
+  --kiosk \
+  --incognito \
+  --noerrdialogs \
+  --disable-infobars \
+  --autoplay-policy=no-user-gesture-required \
+  --check-for-update-interval=31536000 \
+  http://192.168.1.XXX:8123
+Restart=always
+User=YOUR_USER
+Group=YOUR_USER
+
+[Install]
+WantedBy=graphical.target
+
+
+Important flags
+
+--kiosk → fullscreen without UI
+
+--incognito → no restore-session popups
+
+--autoplay-policy=no-user-gesture-required → required for doorbell audio/video
+
+2. Enable the Service
+sudo systemctl daemon-reload
+sudo systemctl enable kiosk.service
+
+
+(Restart system later to test)
+
+Phase 3: Home Assistant Integration
+Goal:
+
+Register the device with HA and hide sidebar/topbar.
+
+1. Install Browser Mod (HACS)
+
+Go to HACS → Integrations → Explore → Browser Mod
+
+Install → Restart HA
+
+Go to Settings → Devices → Add Integration → Browser Mod
+
+On the Ubuntu kiosk, open sidebar → register the device (e.g., wall_dashboard)
+
+2. Install Kiosk Mode (HACS)
+
+In HACS, search/install Kiosk Mode.
+
+Add to Dashboard YAML:
+
+kiosk_mode:
+  entity_settings:
+    - entity:
+        browser_id: wall_dashboard
+      hide_header: true
+      hide_sidebar: true
+
+Phase 4: Automations & Hardware Control
+Goal:
+
+Wake screen on motion and show a doorbell popup.
+
+1. Setup SSH Keys (for Screen Wake)
+
+On Home Assistant terminal:
+
+ssh-keygen -t rsa
+ssh-copy-id your_ubuntu_user@192.168.1.XXX
+
+
+Test wake command:
+
+ssh your_ubuntu_user@192.168.1.XXX "export DISPLAY=:0; xset dpms force on"
+
+2. Create the Screen Control Switch
+
+Add to configuration.yaml:
+
+command_line:
+  - switch:
+      name: Wall Panel Screen
+      command_on: >
+        ssh -i /config/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu_user@192.168.1.XXX "export DISPLAY=:0; xset dpms force on"
+      command_off: >
+        ssh -i /config/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu_user@192.168.1.XXX "export DISPLAY=:0; xset dpms force off"
+
+3. Automation: Wake on Motion
+
+Assumes binary_sensor.hallway_motion.
+
+alias: "Wall Panel: Wake on Motion"
+trigger:
+  - platform: state
+    entity_id: binary_sensor.hallway_motion
+    to: "on"
+action:
+  - service: switch.turn_on
+    target:
+      entity_id: switch.wall_panel_screen
+
+4. Automation: Doorbell Popup
+
+Assumes camera.front_door and binary_sensor.doorbell_pressed.
+
+alias: "Wall Panel: Doorbell Popup"
+trigger:
+  - platform: state
+    entity_id: binary_sensor.doorbell_pressed
+    to: "on"
+action:
+  - service: switch.turn_on
+    target:
+      entity_id: switch.wall_panel_screen
+
+  - service: browser_mod.popup
+    data:
+      browser_id: wall_dashboard
+      title: Front Door
+      timeout: 60000
+      content:
+        type: picture-entity
+        entity: camera.front_door
+        camera_view: live
+
+Decision Guide & Limitations
+Limitations
+
+Touch Input: Ubuntu on-screen keyboards (e.g., onboard) are clunky vs Android.
+
+Power Button: Chromebooks often lack “Power On After Power Loss.”
+
+Motion Detection: Requires external HA motion sensors (unless using heavy webcam motion software).
+
+Choose This Setup If…
+
+You want a large, stable, always-on display
+
+You prefer Ethernet and instant video stream performance
+
+You want zero battery management
+
+Choose a Tablet If…
+
+You need camera-based presence wake
+
+You need typing frequently
+
+You prefer a lightweight, portable device
+
+If you'd like, I can also:
+
+✅ Generate a kiosk.service template with variables
+✅ Create a GitHub repository structure (/docs, /config, /scripts)
+✅ Export as a downloadable README.md file
