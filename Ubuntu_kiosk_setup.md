@@ -1,5 +1,3 @@
-Below is the fully formatted .md (Markdown) file, ready to save directly as README.md in your GitHub repository.
-
 # Ubuntu Home Assistant Kiosk Setup
 A complete guide to creating a stable, auto-restarting, fullscreen Home Assistant dashboard on Ubuntu.
 
@@ -25,55 +23,67 @@ Ubuntu defaults to **Wayland**, which blocks screen-control scripts. Switch to *
 
 ```bash
 sudo nano /etc/gdm3/custom.conf
-
+```
 
 Find:
 
+```
 #WaylandEnable=false
-
+```
 
 Uncomment it:
 
+```
 WaylandEnable=false
-
+```
 
 Save (Ctrl+O), exit (Ctrl+X).
 
-2. Disable Power Saving & Install Utilities
+---
+
+### 2. Disable Power Saving & Install Utilities
 
 Run the following to install browser utilities, enable SSH, and disable system sleep:
 
+```bash
 # Update and install Chromium, SSH Server, Unclutter, Xdotool
 sudo apt update
 sudo apt install chromium-browser openssh-server unclutter xdotool -y
 
 # Prevent all suspend / sleep states
 sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+```
 
-3. Hide the Mouse Cursor
+---
 
-Open Startup Applications.
+### 3. Hide the Mouse Cursor
 
-Add the following entry:
+1. Open **Startup Applications**.  
+2. Add the following entry:
 
-Name: Hide Cursor
+- **Name:** Hide Cursor  
+- **Command:** `unclutter -idle 0.5 -root`
 
-Command: unclutter -idle 0.5 -root
+---
 
-Phase 2: Kiosk Browser Setup
-Goal:
+## Phase 2: Kiosk Browser Setup
 
+### **Goal:**  
 Launch Home Assistant automatically in fullscreen, restart on crash, and allow audio autoplay.
 
-1. Create the Kiosk Service
+---
+
+### 1. Create the Kiosk Service
 
 Create a systemd service:
 
+```bash
 sudo nano /etc/systemd/system/kiosk.service
+```
 
+Paste and update `YOUR_USER` and HA URL:
 
-Paste and update YOUR_USER and HA URL:
-
+```ini
 [Unit]
 Description=Chromium Kiosk
 Wants=graphical.target
@@ -82,87 +92,97 @@ After=graphical.target
 Environment=DISPLAY=:0.0
 Environment=XAUTHORITY=/home/YOUR_USER/.Xauthority
 Type=simple
-ExecStart=/usr/bin/chromium-browser \
-  --kiosk \
-  --incognito \
-  --noerrdialogs \
-  --disable-infobars \
-  --autoplay-policy=no-user-gesture-required \
-  --check-for-update-interval=31536000 \
-  http://192.168.1.XXX:8123
+ExecStart=/usr/bin/chromium-browser   --kiosk   --incognito   --noerrdialogs   --disable-infobars   --autoplay-policy=no-user-gesture-required   --check-for-update-interval=31536000   http://192.168.1.XXX:8123
 Restart=always
 User=YOUR_USER
 Group=YOUR_USER
 
 [Install]
 WantedBy=graphical.target
+```
 
-Important Flags
+#### Important Flags
 
---kiosk – fullscreen mode
+- `--kiosk` – fullscreen mode  
+- `--incognito` – prevents session restore prompts  
+- `--autoplay-policy=no-user-gesture-required` – critical for camera & doorbell audio  
 
---incognito – prevents session restore prompts
+---
 
---autoplay-policy=no-user-gesture-required – critical for camera & doorbell audio
+### 2. Enable the Service
 
-2. Enable the Service
+```bash
 sudo systemctl daemon-reload
 sudo systemctl enable kiosk.service
+```
 
+*(Restart computer later to start the service.)*
 
-(Restart computer later to start the service.)
+---
 
-Phase 3: Home Assistant Integration
-Goal:
+## Phase 3: Home Assistant Integration
 
+### **Goal:**  
 Pair the device with HA, hide UI elements, and customize per-device display.
 
-1. Install Browser Mod (HACS)
+---
 
-Go to HACS → Integrations → Explore and install Browser Mod.
+### 1. Install Browser Mod (HACS)
 
-Restart Home Assistant.
+1. Go to **HACS → Integrations → Explore** and install **Browser Mod**.  
+2. Restart Home Assistant.  
+3. Go to **Settings → Devices → Add Integration → Browser Mod**.  
+4. On the Ubuntu kiosk, open the sidebar and **register the device**.  
+   - Example name: `wall_dashboard`
 
-Go to Settings → Devices → Add Integration → Browser Mod.
+---
 
-On the Ubuntu kiosk, open the sidebar and register the device.
+### 2. Install Kiosk Mode (HACS)
 
-Example name: wall_dashboard
-
-2. Install Kiosk Mode (HACS)
-
-Search and install Kiosk Mode via HACS.
+Search and install **Kiosk Mode** via HACS.
 
 Add to Dashboard YAML (Edit Dashboard → 3 dots → Raw Config Editor):
 
+```yaml
 kiosk_mode:
   entity_settings:
     - entity:
         browser_id: wall_dashboard
       hide_header: true
       hide_sidebar: true
+```
 
-Phase 4: Automations & Hardware Control
-Goal:
+---
 
+## Phase 4: Automations & Hardware Control
+
+### **Goal:**  
 Wake the screen on motion, control display power, and show doorbell popups.
 
-1. Setup SSH Keys (For Screen Wake)
+---
+
+### 1. Setup SSH Keys (For Screen Wake)
 
 On Home Assistant Terminal / SSH add-on:
 
+```bash
 ssh-keygen -t rsa
 ssh-copy-id your_ubuntu_user@192.168.1.XXX
-
+```
 
 Test:
 
+```bash
 ssh your_ubuntu_user@192.168.1.XXX "export DISPLAY=:0; xset dpms force on"
+```
 
-2. Create the Screen Control Switch
+---
 
-Add to configuration.yaml:
+### 2. Create the Screen Control Switch
 
+Add to `configuration.yaml`:
+
+```yaml
 command_line:
   - switch:
       name: Wall Panel Screen
@@ -170,11 +190,15 @@ command_line:
         ssh -i /config/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu_user@192.168.1.XXX "export DISPLAY=:0; xset dpms force on"
       command_off: >
         ssh -i /config/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu_user@192.168.1.XXX "export DISPLAY=:0; xset dpms force off"
+```
 
-3. Automation: Wake on Motion
+---
 
-Assumes binary_sensor.hallway_motion.
+### 3. Automation: Wake on Motion
 
+Assumes `binary_sensor.hallway_motion`.
+
+```yaml
 alias: "Wall Panel: Wake on Motion"
 trigger:
   - platform: state
@@ -184,11 +208,15 @@ action:
   - service: switch.turn_on
     target:
       entity_id: switch.wall_panel_screen
+```
 
-4. Automation: Doorbell Popup
+---
 
-Assumes camera.front_door and binary_sensor.doorbell_pressed.
+### 4. Automation: Doorbell Popup
 
+Assumes `camera.front_door` and `binary_sensor.doorbell_pressed`.
+
+```yaml
 alias: "Wall Panel: Doorbell Popup"
 trigger:
   - platform: state
@@ -208,37 +236,29 @@ action:
         type: picture-entity
         entity: camera.front_door
         camera_view: live
-
-Decision Guide & Limitations
-Limitations
-
-Touch input: Ubuntu on-screen keyboards are less smooth than Android.
-
-Power recovery: Chromebooks may lack a “Power On After Power Loss” setting.
-
-Motion detection: Requires external motion sensors (unless using CPU-heavy webcam detection).
-
-Choose This Setup If…
-
-You want a large, stable, always-on display
-
-Prefer Ethernet and fast camera feed performance
-
-Want zero battery management
-
-Choose a Tablet If…
-
-You need camera-based screen wake
-
-You type often on the device
-
-You want a lightweight interface
-
+```
 
 ---
 
-If you want, I can also:
+## Decision Guide & Limitations
 
-✅ Package this into a downloadable `README.md` file  
-✅ Create a full GitHub repo structure (`/services`, `/ha_config`, `/scripts`)  
-✅ Add screenshots or architecture diagrams  
+### Limitations
+
+- **Touch input:** Ubuntu on-screen keyboards are less smooth than Android.  
+- **Power recovery:** Chromebooks may lack a “Power On After Power Loss” setting.  
+- **Motion detection:** Requires external motion sensors (unless using CPU-heavy webcam detection).
+
+---
+
+## Choose This Setup If…
+
+- You want a **large, stable, always-on display**  
+- Prefer **Ethernet** and fast camera feed performance  
+- Want **zero battery management**  
+
+## Choose a Tablet If…
+
+- You need camera-based screen wake  
+- You type often on the device  
+- You want a lightweight interface  
+
