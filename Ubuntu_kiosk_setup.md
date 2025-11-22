@@ -1,27 +1,29 @@
-Ubuntu Home Assistant Kiosk Setup
+Below is the fully formatted .md (Markdown) file, ready to save directly as README.md in your GitHub repository.
 
-A complete guide to creating a stable, auto-restarting, fullscreen HA dashboard on Ubuntu.
+# Ubuntu Home Assistant Kiosk Setup
+A complete guide to creating a stable, auto-restarting, fullscreen Home Assistant dashboard on Ubuntu.
 
-Phase 1: Operating System Preparation
-Goal:
+---
 
+## Phase 1: Operating System Preparation
+
+### **Goal:**  
 Ensure the system never sleeps, hides the mouse, and allows external control.
 
-1. Switch to Xorg (Critical)
+---
 
-Ubuntu defaults to Wayland, which blocks screen-control scripts. Switch to Xorg (X11).
+### 1. Switch to Xorg (Critical)
 
-Log out of your current session.
+Ubuntu defaults to **Wayland**, which blocks screen-control scripts. Switch to **Xorg (X11)**:
 
-Click your username. Before entering your password, click the gear icon (bottom right).
+1. Log out of your current session.  
+2. Click your username. Before entering your password, click the **gear icon**.  
+3. Select **Ubuntu on Xorg**.  
+4. Log in.
 
-Select Ubuntu on Xorg.
+**Permanent configuration change:**
 
-Log in.
-
-Permanent Fix:
-Edit the config file:
-
+```bash
 sudo nano /etc/gdm3/custom.conf
 
 
@@ -30,30 +32,29 @@ Find:
 #WaylandEnable=false
 
 
-Uncomment it so it becomes:
+Uncomment it:
 
 WaylandEnable=false
 
 
-Save: Ctrl+O, Enter
-Exit: Ctrl+X
+Save (Ctrl+O), exit (Ctrl+X).
 
 2. Disable Power Saving & Install Utilities
 
-Run:
+Run the following to install browser utilities, enable SSH, and disable system sleep:
 
-# Update and install Chromium, SSH Server, Xdotool, Unclutter
+# Update and install Chromium, SSH Server, Unclutter, Xdotool
 sudo apt update
 sudo apt install chromium-browser openssh-server unclutter xdotool -y
 
-# Prevent all sleep / suspend modes
+# Prevent all suspend / sleep states
 sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
 
 3. Hide the Mouse Cursor
 
 Open Startup Applications.
 
-Add a new entry:
+Add the following entry:
 
 Name: Hide Cursor
 
@@ -62,16 +63,16 @@ Command: unclutter -idle 0.5 -root
 Phase 2: Kiosk Browser Setup
 Goal:
 
-Launch Home Assistant automatically in full-screen kiosk mode, with crash recovery.
+Launch Home Assistant automatically in fullscreen, restart on crash, and allow audio autoplay.
 
 1. Create the Kiosk Service
 
-Create the service:
+Create a systemd service:
 
 sudo nano /etc/systemd/system/kiosk.service
 
 
-Paste (replace YOUR_USER and HA URL):
+Paste and update YOUR_USER and HA URL:
 
 [Unit]
 Description=Chromium Kiosk
@@ -96,42 +97,43 @@ Group=YOUR_USER
 [Install]
 WantedBy=graphical.target
 
+Important Flags
 
-Important flags
+--kiosk – fullscreen mode
 
---kiosk → fullscreen without UI
+--incognito – prevents session restore prompts
 
---incognito → no restore-session popups
-
---autoplay-policy=no-user-gesture-required → required for doorbell audio/video
+--autoplay-policy=no-user-gesture-required – critical for camera & doorbell audio
 
 2. Enable the Service
 sudo systemctl daemon-reload
 sudo systemctl enable kiosk.service
 
 
-(Restart system later to test)
+(Restart computer later to start the service.)
 
 Phase 3: Home Assistant Integration
 Goal:
 
-Register the device with HA and hide sidebar/topbar.
+Pair the device with HA, hide UI elements, and customize per-device display.
 
 1. Install Browser Mod (HACS)
 
-Go to HACS → Integrations → Explore → Browser Mod
+Go to HACS → Integrations → Explore and install Browser Mod.
 
-Install → Restart HA
+Restart Home Assistant.
 
-Go to Settings → Devices → Add Integration → Browser Mod
+Go to Settings → Devices → Add Integration → Browser Mod.
 
-On the Ubuntu kiosk, open sidebar → register the device (e.g., wall_dashboard)
+On the Ubuntu kiosk, open the sidebar and register the device.
+
+Example name: wall_dashboard
 
 2. Install Kiosk Mode (HACS)
 
-In HACS, search/install Kiosk Mode.
+Search and install Kiosk Mode via HACS.
 
-Add to Dashboard YAML:
+Add to Dashboard YAML (Edit Dashboard → 3 dots → Raw Config Editor):
 
 kiosk_mode:
   entity_settings:
@@ -143,17 +145,17 @@ kiosk_mode:
 Phase 4: Automations & Hardware Control
 Goal:
 
-Wake screen on motion and show a doorbell popup.
+Wake the screen on motion, control display power, and show doorbell popups.
 
-1. Setup SSH Keys (for Screen Wake)
+1. Setup SSH Keys (For Screen Wake)
 
-On Home Assistant terminal:
+On Home Assistant Terminal / SSH add-on:
 
 ssh-keygen -t rsa
 ssh-copy-id your_ubuntu_user@192.168.1.XXX
 
 
-Test wake command:
+Test:
 
 ssh your_ubuntu_user@192.168.1.XXX "export DISPLAY=:0; xset dpms force on"
 
@@ -210,30 +212,33 @@ action:
 Decision Guide & Limitations
 Limitations
 
-Touch Input: Ubuntu on-screen keyboards (e.g., onboard) are clunky vs Android.
+Touch input: Ubuntu on-screen keyboards are less smooth than Android.
 
-Power Button: Chromebooks often lack “Power On After Power Loss.”
+Power recovery: Chromebooks may lack a “Power On After Power Loss” setting.
 
-Motion Detection: Requires external HA motion sensors (unless using heavy webcam motion software).
+Motion detection: Requires external motion sensors (unless using CPU-heavy webcam detection).
 
 Choose This Setup If…
 
 You want a large, stable, always-on display
 
-You prefer Ethernet and instant video stream performance
+Prefer Ethernet and fast camera feed performance
 
-You want zero battery management
+Want zero battery management
 
 Choose a Tablet If…
 
-You need camera-based presence wake
+You need camera-based screen wake
 
-You need typing frequently
+You type often on the device
 
-You prefer a lightweight, portable device
+You want a lightweight interface
 
-If you'd like, I can also:
 
-✅ Generate a kiosk.service template with variables
-✅ Create a GitHub repository structure (/docs, /config, /scripts)
-✅ Export as a downloadable README.md file
+---
+
+If you want, I can also:
+
+✅ Package this into a downloadable `README.md` file  
+✅ Create a full GitHub repo structure (`/services`, `/ha_config`, `/scripts`)  
+✅ Add screenshots or architecture diagrams  
